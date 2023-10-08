@@ -19,13 +19,16 @@ class ConfigProvider:
     def get_bot_token(self) -> str:
         return self.env('BOT_TOKEN')
 
-    def get_api_weathe_key(self) -> str:
-        return self.env('API_KEY')
+    def get_chatGPT_key(self) -> str:
+        return self.env('API_GPT')
 
-    def get_database_config(self) -> DataBase:
+    def get_weatherAPI_key(self) -> str:
+        return self.env('API_KEY_WEATHER')
+
+    def get_database_config(self):
         return DataBase(
             host=self.env('HOST'),
-            port=self.env('PORT'),
+            port=self.env.int('PORT'),
             user=self.env('USER'),
             password=self.env('PASS'),
             db_name=self.env('DB_NAME')

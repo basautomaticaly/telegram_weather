@@ -1,8 +1,8 @@
 import asyncio
-from models import models, methods
+from handlers import user_handlers
 from config_data.config import ConfigProvider
-from aiogram import Bot, Dispatcher, F
-from aiogram.filters import CommandStart
+from models.models import Database
+from aiogram import Bot, Dispatcher
 from aiogram.types import ContentType, ReplyKeyboardMarkup, KeyboardButton, KeyboardButtonPollType, Message
 from aiogram.utils.keyboard import ReplyKeyboardBuilder
 import pymysql
@@ -11,43 +11,20 @@ import pymysql
 # функция конфигурирования и запуска бота
 async def main():
     # загрузка конфига в переменную config
-    token_bot: str = ConfigProvider.get_bot_token()
+    config_provider = ConfigProvider()
+    token_bot: str = config_provider.get_bot_token()
     # Инициализация бота и диспетчера
     bot = Bot(token=token_bot)
     dp = Dispatcher()
     #подключаемся к бд
-    connection = await models.connect_to_database()
-    print('Connected to the database')
+    dp.include_router(user_handlers.router)
     #делаем что-то
 
+    await bot.delete_webhook(drop_pending_updates=True)
+    await dp.start_polling(bot)
 
 
 
-try:
-    connection = pymysql.connect(
-        host='localhost',
-        port=3306,
-        user='mysql',
-        password='mysql',
-        database='tele_weather',
-        cursorclass=pymysql.cursors.DictCursor
-    )
-    print('good')
-    try:
-        with connection.cursor() as cursor:
-            select_alls = "INSERT INTO `user` (user_id, latitude, longitude) VALUES ('213','22.3','11.2');"
-            cursor.execute(select_alls)
-            connection.commit()
-        with connection.cursor() as cursor:
-            select_all = "SELECT * FROM `user`"
-            cursor.execute(select_all)
-            rows = cursor.fetchall()
-            for row in rows:
-                print(row)
-    finally:
-        connection.close()
-except Exception as ex:
-    print(f'Failed {ex}')
 
 dp = Dispatcher()
 bot = Bot(token='6423820458:AAElOMfj6e6K4UiEWSLmp2qboMGUpVQefsw')
@@ -84,33 +61,9 @@ keyboard: ReplyKeyboardMarkup = kb_builder.as_markup(
 )
 
 
-@dp.message(F.content_type == ContentType.LOCATION)
-async def process_start_command(message: Message):
-    print(message)
-    latitude = message.location.latitude
-    longitude = message.location.longitude
-    url = f'http://api.weatherapi.com/v1/current.json?key={api_key}&q={latitude},{longitude}'
-    response = requests.get(url)
-
-    # Проверка статуса ответа
-    if response.status_code == 200:
-        data = response.json()
-        print(data)
-    else:
-        print(f'Error: {response.status_code}')
-    await message.answer(
-        text=f'{data}Спасибо за вашу геолокацию',
-        reply_markup=keyboard
-    )
 
 
-# Этот хэндлер будет срабатывать на команду "/start"
-@dp.message(CommandStart())
-async def process_start_command(message: Message):
-    await message.answer(
-        text='Экспериментируем со специальными кнопками',
-        reply_markup=keyboard
-    )
+
 
 
 if __name__ == '__main__':

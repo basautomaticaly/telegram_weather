@@ -6,70 +6,57 @@ from keyboards.keyboards import Keyboard
 from aiogram import Router
 from models import methods
 from models.models import Database
+from services.services import get_info_weather
 
 router = Router()
-keyboard = Keyboard()
+keyboard_markup = Keyboard.build()
 
 
 @router.message(CommandStart())
 async def process_start_command(message: Message):
-    await message.answer(text=LEXICON_RU['/start'], reply_markup=keyboard)
+    await message.answer(text=LEXICON_RU['/start'], reply_markup=keyboard_markup)
 
 
 @router.message(Command(commands='/help'))
 async def process_help_command(message: Message):
     await message.answer(text=LEXICON_RU['/help'])
 
+
 @router.message(F.content_type == ContentType.LOCATION)
-async def process_start_command(message: Message):
+async def process_geo_command(message: Message):
     latitude = message.location.latitude
     longitude = message.location.longitude
-    connection = await Database.connect_to_database()
+    pool = await Database.connect_to_database()
+    async with pool.acquire() as connection:
+        async with connection.cursor() as cursor:
+            if await methods.check_user_exists(connection=connection, user_id=message.from_user.id):
+                await methods.update_user_location(connection=connection,
+                                                   user_id=message.from_user.id,
+                                                   latitude=latitude,
+                                                   longitude=longitude
+                                                   )
+            else:
+                await methods.insert_user(connection=connection,
+                                          user_id=message.from_user.id,
+                                          latitude=latitude,
+                                          longitude=longitude
+                                          )
+    await message.answer(text=LEXICON_RU['Get_geo'], reply_markup=keyboard_markup)
 
-    if methods.check_user_exists(message.from_user.id):
-        await methods.update_user_location(connection=connection,
-                                           user_id=message.from_user.id,
-                                           latitude=latitude,
-                                           longitude=longitude
-                                           )
-    else:
-        await methods.insert_user(connection=connection,
-                                  user_id=message.from_user.id,
-                                  latitude=latitude,
-                                  longitude=longitude
-                                  )
-    await message.answer(
-        text=f'{data}Спасибо за вашу геолокацию',
-        reply_markup=keyboard
-    )
-    await Database.disconnect_from_database()
 
 @router.message(F.text == 'Подобрать одежду')
 async def process_cloth_message(message: Message):
-    connection = await Database.connect_to_database()
-    if methods.check_user_exists(connection=connection, user_id=message.from_user.id):
-        pass
-    else:
-        await message.answer(text=LEXICON_RU['None'], reply_markup=keyboard)
-    await Database.disconnect_from_database()
+    pool = await Database.connect_to_database()
+    async with pool.acquire() as connection:
+        async with connection.cursor() as cursor:
+            if await methods.check_user_exists(connection=connection, user_id=message.from_user.id):
+                coords = await methods.get_user_coords(connection=connection, user_id=message.from_user.id)
+                await message.answer(text=f'Ваши координаты: широта {coords["latitude"]} и долгота {coords["longitude"]}', reply_markup=keyboard_markup)
+                answer = await get_info_weather(latitude=coords["latitude"],longitude=coords["longitude"])
+                await message.answer(
+                    text=answer,
+                    reply_markup=keyboard_markup)
+            else:
+                await message.answer(text=LEXICON_RU['None'], reply_markup=keyboard_markup)
 
 
-
-@router.message(F.content_type == ContentType.LOCATION)
-async def process_start_command(message: Message):
-    latitude = message.location.latitude
-    longitude = message.location.longitude
-
-    url = f'http://api.weatherapi.com/v1/current.json?key={api_key}&q={latitude},{longitude}'
-    response = requests.get(url)
-
-    # Проверка статуса ответа
-    if response.status_code == 200:
-        data = response.json()
-        print(data)
-    else:
-        print(f'Error: {response.status_code}')
-    await message.answer(
-        text=f'{data}Спасибо за вашу геолокацию',
-        reply_markup=keyboard
-    )
