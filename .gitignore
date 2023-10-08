@@ -1,0 +1,7 @@
+# Default ignored files
+/shelf/
+.env
+__pycache__/
+.mypy_cahe/
+venv/
+.idea/
